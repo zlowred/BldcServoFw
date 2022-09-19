@@ -1,0 +1,5 @@
+../3rd_party/tmc/helpers/CRC.c:201:17:flipBitsInBytes	0	static
+../3rd_party/tmc/helpers/CRC.c:86:9:tmc_fillCRC8Table	32	static
+../3rd_party/tmc/helpers/CRC.c:148:9:tmc_CRC8	16	static
+../3rd_party/tmc/helpers/CRC.c:164:9:tmc_tableGetPolynomial	0	static
+../3rd_party/tmc/helpers/CRC.c:172:6:tmc_tableIsReflected	0	static

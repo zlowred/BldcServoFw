@@ -1,0 +1,6 @@
+../Middlewares/ST/EEPROM_Emul/Porting/STM32G4/flash_interface.c:51:19:FI_WriteDoubleWord	0	static
+../Middlewares/ST/EEPROM_Emul/Porting/STM32G4/flash_interface.c:64:11:FI_PageErase	32	static
+../Middlewares/ST/EEPROM_Emul/Porting/STM32G4/flash_interface.c:95:11:FI_PageErase_IT	24	static
+../Middlewares/ST/EEPROM_Emul/Porting/STM32G4/flash_interface.c:122:6:FI_CacheFlush	0	static
+../Middlewares/ST/EEPROM_Emul/Porting/STM32G4/flash_interface.c:176:11:FI_DeleteCorruptedFlashAddress	0	static
+../Middlewares/ST/EEPROM_Emul/Porting/STM32G4/flash_interface.c:241:11:FI_CheckBankConfig	0	static

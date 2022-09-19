@@ -1,0 +1,6 @@
+../Core/Src/tmc4671.c:86:6:setTmc4671State	0	static
+../Core/Src/tmc4671.c:98:14:getTmc4671State	0	static
+../Core/Src/tmc4671.c:102:9:hasTmc4671Failure	0	static
+../Core/Src/tmc4671.c:133:9:tmc4671_readInt	32	static
+../Core/Src/tmc4671.c:159:6:tmc4671_writeInt	16	static
+../Core/Src/tmc4671.c:21:6:initTmc4671	8	static
