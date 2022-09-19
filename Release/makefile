@@ -46,34 +46,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := test_fw
+BUILD_ARTIFACT_NAME := BldcServoFw
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-test_fw.elf \
+BldcServoFw.elf \
 
 MAP_FILES += \
-test_fw.map \
+BldcServoFw.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-test_fw.list \
+BldcServoFw.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: test_fw.elf secondary-outputs
+main-build: BldcServoFw.elf secondary-outputs
 
 # Tool invocations
-test_fw.elf test_fw.map: $(OBJS) $(USER_OBJS) /Users/matveev/STM32CubeIDE/workspace_1.7.0/test_fw/STM32G431CBUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "test_fw.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/Users/matveev/STM32CubeIDE/workspace_1.7.0/test_fw/STM32G431CBUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="test_fw.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+BldcServoFw.elf BldcServoFw.map: $(OBJS) $(USER_OBJS) /Users/matveev/STM32CubeIDE/workspace_1.7.0/BldcServoFw/STM32G431CBUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "BldcServoFw.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/Users/matveev/STM32CubeIDE/workspace_1.7.0/BldcServoFw/STM32G431CBUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BldcServoFw.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -82,14 +82,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-test_fw.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "test_fw.list"
+BldcServoFw.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "BldcServoFw.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) default.size.stdout test_fw.elf test_fw.list test_fw.map
+	-$(RM) BldcServoFw.elf BldcServoFw.list BldcServoFw.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

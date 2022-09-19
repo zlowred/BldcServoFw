@@ -201,7 +201,7 @@
 			<resource resourceType="PROJECT" workspacePath="/test_fw"/>
 		</configuration>
 		<configuration configurationName="Release">
-			<resource resourceType="PROJECT" workspacePath="/test_fw"/>
+			<resource resourceType="PROJECT" workspacePath="/BldcServoFw"/>
 		</configuration>
 	</storageModule>
 </cproject>
