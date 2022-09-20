@@ -33,6 +33,7 @@
 #include "gray_encoder.h"
 #include "tmc/ic/TMC4671/TMC4671.h"
 #include "eeprom_emul.h"
+#include "interface.h"
 
 /* USER CODE END Includes */
 
@@ -41,11 +42,6 @@ typedef StaticTask_t osStaticThreadDef_t;
 typedef StaticQueue_t osStaticMessageQDef_t;
 typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE BEGIN PTD */
-
-typedef struct {
-	uint8_t data[256];
-	uint32_t size;
-} UsbTxData;
 
 /* USER CODE END PTD */
 
@@ -251,6 +247,9 @@ FDCAN_RxHeaderTypeDef RxHeader;
 
 uint8_t rs485TxData[64];
 uint8_t rs485RxData[128];
+uint16_t rs485RxDataPos = 0;
+uint16_t rs485RxDataLength = 0;
+
 
 uint8_t usbRxData[256];
 uint32_t usbRxDataLength;
@@ -959,11 +958,13 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 	}
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
 	if (huart->Instance == USART2) {
+		rs485RxDataLength = size;
 		osSemaphoreRelease(rs485RxCompletedHandle);
 	}
 }
+
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART2) {
 		osSemaphoreRelease(rs485TxCompletedHandle);
@@ -988,6 +989,13 @@ void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan,
 	}
 }
 
+void transmitUsb(UsbTxData *usbTransmitData) {
+	osMessageQueuePut(usbTxQueueHandle, usbTransmitData, 0, osWaitForever);
+}
+
+uint32_t calculateCrc(uint8_t *data, uint16_t length) {
+	return HAL_CRC_Calculate(&hcrc, (uint32_t *)data, length);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_handleUsbRx */
@@ -1036,7 +1044,9 @@ void handleUsbRx(void *argument)
 		} else if (!memcmp("can", usbRxData, 3)) {
 
 		} else if (!memcmp("rs485", usbRxData, 5)) {
+			memset(rs485TxData, 0, 60);
 			sprintf((char*) rs485TxData, "$ %08lx\n", xTaskGetTickCount());
+			*((uint32_t *)&rs485TxData[60]) = calculateCrc(rs485TxData, 60);
 			HAL_UART_Transmit_DMA(&huart2, rs485TxData, 64);
 			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
 		} else if (!memcmp("fdcan", usbRxData, 5)) {
@@ -1172,24 +1182,24 @@ void blink(void *argument)
 void handleRs485(void *argument)
 {
   /* USER CODE BEGIN handleRs485 */
-	static UsbTxData usbData;
-
 	/* Infinite loop */
 	for (;;) {
-		HAL_UART_Receive_DMA(&huart2, rs485RxData, 64);
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart2, &rs485RxData[rs485RxDataPos], sizeof(rs485RxData) - rs485RxDataPos);
+		__HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 		if (osSemaphoreAcquire(rs485RxCompletedHandle, 10) != osOK) {
 			continue;
 		}
-		if (rs485RxData[0] == '$') {
-			memcpy(rs485TxData, rs485RxData, 64);
-			rs485TxData[0] = '}';
-			HAL_UART_Transmit_DMA(&huart2, rs485TxData, 64);
-			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
-		} else {
-			memcpy(usbData.data, rs485RxData, 11);
-			usbData.size = 11;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
+		for (uint16_t pos = 1; pos <= rs485RxDataLength; pos++) {
+			if (handleCommand(rs485RxData, rs485RxDataPos + pos, RS485)) {
+				memmove(rs485RxData, &rs485RxData[rs485RxDataPos + pos], sizeof(rs485RxData) - rs485RxDataLength - pos);
+				rs485RxDataPos = 0;
+			}
 		}
+		if (rs485RxDataPos + rs485RxDataLength == 128) {
+			memmove(rs485RxData, &rs485RxData[64], 64);
+			rs485RxDataPos = 64;
+		}
+		rs485RxDataLength = 0;
 	}
   /* USER CODE END handleRs485 */
 }

@@ -10,6 +10,7 @@ C_SRCS += \
 ../Core/Src/config.c \
 ../Core/Src/drv8320h.c \
 ../Core/Src/gray_encoder.c \
+../Core/Src/interface.c \
 ../Core/Src/main.c \
 ../Core/Src/stm32g4xx_hal_msp.c \
 ../Core/Src/stm32g4xx_hal_timebase_tim.c \
@@ -25,6 +26,7 @@ OBJS += \
 ./Core/Src/config.o \
 ./Core/Src/drv8320h.o \
 ./Core/Src/gray_encoder.o \
+./Core/Src/interface.o \
 ./Core/Src/main.o \
 ./Core/Src/stm32g4xx_hal_msp.o \
 ./Core/Src/stm32g4xx_hal_timebase_tim.o \
@@ -40,6 +42,7 @@ C_DEPS += \
 ./Core/Src/config.d \
 ./Core/Src/drv8320h.d \
 ./Core/Src/gray_encoder.d \
+./Core/Src/interface.d \
 ./Core/Src/main.d \
 ./Core/Src/stm32g4xx_hal_msp.d \
 ./Core/Src/stm32g4xx_hal_timebase_tim.d \
@@ -57,7 +60,7 @@ Core/Src/%.o Core/Src/%.su: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/acs711.d ./Core/Src/acs711.o ./Core/Src/acs711.su ./Core/Src/app_freertos.d ./Core/Src/app_freertos.o ./Core/Src/app_freertos.su ./Core/Src/config.d ./Core/Src/config.o ./Core/Src/config.su ./Core/Src/drv8320h.d ./Core/Src/drv8320h.o ./Core/Src/drv8320h.su ./Core/Src/gray_encoder.d ./Core/Src/gray_encoder.o ./Core/Src/gray_encoder.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32g4xx_hal_msp.d ./Core/Src/stm32g4xx_hal_msp.o ./Core/Src/stm32g4xx_hal_msp.su ./Core/Src/stm32g4xx_hal_timebase_tim.d ./Core/Src/stm32g4xx_hal_timebase_tim.o ./Core/Src/stm32g4xx_hal_timebase_tim.su ./Core/Src/stm32g4xx_it.d ./Core/Src/stm32g4xx_it.o ./Core/Src/stm32g4xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32g4xx.d ./Core/Src/system_stm32g4xx.o ./Core/Src/system_stm32g4xx.su ./Core/Src/tmc4671.d ./Core/Src/tmc4671.o ./Core/Src/tmc4671.su
+	-$(RM) ./Core/Src/acs711.d ./Core/Src/acs711.o ./Core/Src/acs711.su ./Core/Src/app_freertos.d ./Core/Src/app_freertos.o ./Core/Src/app_freertos.su ./Core/Src/config.d ./Core/Src/config.o ./Core/Src/config.su ./Core/Src/drv8320h.d ./Core/Src/drv8320h.o ./Core/Src/drv8320h.su ./Core/Src/gray_encoder.d ./Core/Src/gray_encoder.o ./Core/Src/gray_encoder.su ./Core/Src/interface.d ./Core/Src/interface.o ./Core/Src/interface.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32g4xx_hal_msp.d ./Core/Src/stm32g4xx_hal_msp.o ./Core/Src/stm32g4xx_hal_msp.su ./Core/Src/stm32g4xx_hal_timebase_tim.d ./Core/Src/stm32g4xx_hal_timebase_tim.o ./Core/Src/stm32g4xx_hal_timebase_tim.su ./Core/Src/stm32g4xx_it.d ./Core/Src/stm32g4xx_it.o ./Core/Src/stm32g4xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32g4xx.d ./Core/Src/system_stm32g4xx.o ./Core/Src/system_stm32g4xx.su ./Core/Src/tmc4671.d ./Core/Src/tmc4671.o ./Core/Src/tmc4671.su
 
 .PHONY: clean-Core-2f-Src
 

@@ -37,6 +37,16 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+typedef struct {
+	uint8_t data[256];
+	uint32_t size;
+} UsbTxData;
+
+typedef enum {
+	CANFD,
+	RS485,
+} Interface;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -106,6 +116,9 @@ void Error_Handler(void);
 #define MODE_45_Pin GPIO_PIN_7
 #define MODE_45_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
+
+void transmitUsb(UsbTxData *usbTransmitData);
+uint32_t calculateCrc(uint8_t *data, uint16_t length);
 
 /* USER CODE END Private defines */
 
