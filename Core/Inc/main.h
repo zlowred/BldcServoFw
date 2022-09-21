@@ -114,6 +114,8 @@ void Error_Handler(void);
 
 uint32_t calculateCrc(uint8_t *data, uint16_t length);
 void startDfu();
+void doRs485Test();
+void doFdCanTest();
 
 /* USER CODE END Private defines */
 

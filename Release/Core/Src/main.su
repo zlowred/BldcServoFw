@@ -1,6 +1,6 @@
-../Core/Src/main.c:1245:6:handleSpi2	8	static
-../Core/Src/main.c:1124:6:blink	8	static
-../Core/Src/main.c:1178:6:handleRs485	24	static
+../Core/Src/main.c:1178:6:handleSpi2	8	static
+../Core/Src/main.c:1057:6:blink	8	static
+../Core/Src/main.c:1111:6:handleRs485	24	static
 ../Core/Src/main.c:260:6:JumpToBootloader	8	static,ignoring_inline_asm
 ../Core/Src/main.c:898:6:HAL_FLASH_EndOfOperationCallback	0	static
 ../Core/Src/main.c:905:6:HAL_SPI_TxCpltCallback	0	static
@@ -12,10 +12,12 @@
 ../Core/Src/main.c:953:10:calculateCrc	0	static
 ../Core/Src/main.c:957:5:_write	24	static
 ../Core/Src/main.c:970:6:nextChar	16	static
-../Core/Src/main.c:1010:6:handleUsbRx	8	static
+../Core/Src/main.c:1038:6:handleUsbRx	8	static
 ../Core/Src/main.c:983:6:startDfu	16	static,ignoring_inline_asm
-../Core/Src/main.c:1265:6:HAL_TIM_PeriodElapsedCallback	0	static
-../Core/Src/main.c:1282:6:Error_Handler	16	static,ignoring_inline_asm
+../Core/Src/main.c:1001:6:doRs485Test	16	static
+../Core/Src/main.c:1198:6:HAL_TIM_PeriodElapsedCallback	0	static
+../Core/Src/main.c:1215:6:Error_Handler	16	static,ignoring_inline_asm
 ../Core/Src/main.c:458:6:SystemClock_Config	88	static
 ../Core/Src/main.c:278:5:main	80	static
-../Core/Src/main.c:1213:6:handleFdCan	8	static
+../Core/Src/main.c:1020:6:doFdCanTest	8	static
+../Core/Src/main.c:1146:6:handleFdCan	8	static

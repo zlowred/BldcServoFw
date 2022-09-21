@@ -12,6 +12,9 @@
 #include "cli.h"
 #include "eeprom_emul.h"
 #include "cmsis_os.h"
+#include "acs711.h"
+#include "tmc4671.h"
+#include "drv8320h.h"
 
 extern volatile uint32_t isErasing;
 
@@ -25,12 +28,24 @@ typedef enum {
 	READ_FLASH_POST,
 	WRITE_FLASH_PRE,
 	WRITE_FLASH_POST,
+	INIT_PRE,
+	INIT_POST,
+	RESET_DRV_PRE,
+	RESET_DRV_POST,
+	RS_485_PRE,
+	RS_485_POST,
+	FD_CAN_PRE,
+	FD_CAN_POST,
 } CliState;
 
 static char dfu[] = "dfu(";
 static char crcTest[] = "crcTest(";
 static char readFlash[] = "readFlash(";
 static char writeFlash[] = "writeFlash(";
+static char init[] = "init(";
+static char resetDrv[] = "resetDrv(";
+static char rs485Test[] = "rs485Test(";
+static char fdCanTest[] = "fdCanTest(";
 
 static CliState state = START;
 static char token[50];
@@ -42,6 +57,8 @@ void doCrcTest();
 char commandMatch(char command[]);
 void doReadFlash();
 void doWriteFlash();
+void doInit();
+void doResetDrv();
 
 void processCli(char c) {
 	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
@@ -65,7 +82,28 @@ void processCli(char c) {
 		} else if (commandMatch(writeFlash)) {
 			state = WRITE_FLASH_PRE;
 			tokenIdx = 0;
+		} else if (commandMatch(init)) {
+			state = INIT_PRE;
+			tokenIdx = 0;
+		} else if (commandMatch(resetDrv)) {
+			state = RESET_DRV_PRE;
+			tokenIdx = 0;
+		} else if (commandMatch(rs485Test)) {
+			state = RS_485_PRE;
+			tokenIdx = 0;
+		} else if (commandMatch(fdCanTest)) {
+			state = FD_CAN_PRE;
+			tokenIdx = 0;
 		}
+		break;
+	case DFU_POST:
+	case CRC_POST:
+	case READ_FLASH_POST:
+	case WRITE_FLASH_POST:
+	case INIT_POST:
+	case RESET_DRV_POST:
+	case RS_485_POST:
+	case FD_CAN_POST:
 		break;
 	case DFU_PRE:
 		if (tokenIdx == 1 && token[0] == ')') {
@@ -73,15 +111,11 @@ void processCli(char c) {
 			tokenIdx = 0;
 		}
 		break;
-	case DFU_POST:
-		break;
 	case CRC_PRE:
 		if (tokenIdx == 1 && token[0] == ')') {
 			state = CRC_POST;
 			tokenIdx = 0;
 		}
-		break;
-	case CRC_POST:
 		break;
 	case READ_FLASH_PRE:
 		if (tokenIdx == 1 && token[0] == ')') {
@@ -89,15 +123,35 @@ void processCli(char c) {
 			tokenIdx = 0;
 		}
 		break;
-	case READ_FLASH_POST:
-		break;
 	case WRITE_FLASH_PRE:
 		if (tokenIdx == 1 && token[0] == ')') {
 			state = WRITE_FLASH_POST;
 			tokenIdx = 0;
 		}
 		break;
-	case WRITE_FLASH_POST:
+	case INIT_PRE:
+		if (tokenIdx == 1 && token[0] == ')') {
+			state = INIT_POST;
+			tokenIdx = 0;
+		}
+		break;
+	case RESET_DRV_PRE:
+		if (tokenIdx == 1 && token[0] == ')') {
+			state = RESET_DRV_POST;
+			tokenIdx = 0;
+		}
+		break;
+	case RS_485_PRE:
+		if (tokenIdx == 1 && token[0] == ')') {
+			state = RS_485_POST;
+			tokenIdx = 0;
+		}
+		break;
+	case FD_CAN_PRE:
+		if (tokenIdx == 1 && token[0] == ')') {
+			state = FD_CAN_POST;
+			tokenIdx = 0;
+		}
 		break;
 	}
 
@@ -121,6 +175,10 @@ void handleNewline() {
 	case CRC_PRE:
 	case READ_FLASH_PRE:
 	case WRITE_FLASH_PRE:
+	case INIT_PRE:
+	case RESET_DRV_PRE:
+	case RS_485_PRE:
+	case FD_CAN_PRE:
 		incompleteCommand();
 		break;
 	case DFU_POST:
@@ -141,6 +199,26 @@ void handleNewline() {
 		break;
 	case WRITE_FLASH_POST:
 		doWriteFlash();
+		tokenIdx = 0;
+		state = START;
+		break;
+	case INIT_POST:
+		doInit();
+		tokenIdx = 0;
+		state = START;
+		break;
+	case RESET_DRV_POST:
+		doResetDrv();
+		tokenIdx = 0;
+		state = START;
+		break;
+	case RS_485_POST:
+		doRs485Test();
+		tokenIdx = 0;
+		state = START;
+		break;
+	case FD_CAN_POST:
+		doFdCanTest();
 		tokenIdx = 0;
 		state = START;
 		break;
@@ -203,4 +281,14 @@ void doWriteFlash() {
 	/* Lock the Flash Program Erase controller */
 	HAL_FLASH_Lock();
 	printf("Written: 0x%08lX\n", flashData);
+}
+
+void doInit() {
+	initDrv8320h();
+	initTmc4671();
+	resetDrv8320hFault();
+}
+
+void doResetDrv() {
+	resetDrv8320hFault();
 }

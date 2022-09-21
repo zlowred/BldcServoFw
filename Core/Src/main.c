@@ -998,6 +998,34 @@ void startDfu() {
 	NVIC_SystemReset();
 }
 
+void doRs485Test() {
+	printf("RS485 TX 1\n");
+	memset(rs485TxData, 0, 60);
+	sprintf((char*) rs485TxData, "$ 0x%08lX\n", xTaskGetTickCount());
+	*((uint32_t *)&rs485TxData[60]) = calculateCrc(rs485TxData, 60);
+	HAL_UART_Transmit_DMA(&huart2, rs485TxData, 32);
+	osSemaphoreAcquire(rs485TxCompletedHandle, 10);
+	printf("RS485 TX 2\n");
+	osDelay(10);
+	HAL_UART_Transmit_DMA(&huart2, &rs485TxData[32], 32);
+	osSemaphoreAcquire(rs485TxCompletedHandle, 10);
+	printf("RS485 TX 3\n");
+	static uint8_t junk[4] = "junk";
+	osDelay(10);
+	HAL_UART_Transmit_DMA(&huart2, junk, 4);
+	osSemaphoreAcquire(rs485TxCompletedHandle, 10);
+	printf("RS485 TX 4\n");
+}
+
+void doFdCanTest() {
+	sprintf((char*) fdCanTxData, "# %08lx\n", xTaskGetTickCount());
+	if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, fdCanTxData)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	osSemaphoreAcquire(fdCanTxCompletedHandle, 10);
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_handleUsbRx */
@@ -1014,101 +1042,6 @@ void handleUsbRx(void *argument)
 	/* Infinite loop */
 	for (;;) {
 		processCli(nextChar());
-//		if (strnlen(usbRxData, usbRxDataLength) == usbRxDataLength) {
-//			printf("Too long line: [%.*s]\n", usbRxDataLength, usbRxData);
-//			continue;
-//		}
-//		printf("Line: [%s]\n", usbRxData);
-//		USBD_CDC_ReceivePacket(&hUsbDeviceFS);
-//		if (osSemaphoreAcquire(usbRxCompletedHandle, 10) != osOK) {
-//			continue;
-//		}
-//		if (!usbRxDataLength) {
-//			continue;
-//		}
-//		if (!memcmp("dfu", usbRxData, 3)) {
-//			osKernelLock();
-//			HAL_GPIO_WritePin(DIAG_1_GPIO_Port, DIAG_1_Pin, GPIO_PIN_SET);
-//			HAL_GPIO_WritePin(DIAG_2_GPIO_Port, DIAG_2_Pin, GPIO_PIN_SET);
-//			HAL_PWR_EnableBkUpAccess();
-//			HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xDEAD);
-//			HAL_PWR_DisableBkUpAccess();
-//			for (int i = 0; i < 10; i++) {
-//				HAL_Delay(50);
-//				HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
-//				HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
-//				HAL_Delay(200);
-//				HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
-//				HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
-//			}
-//			NVIC_SystemReset();
-//		} else if (!memcmp("init", usbRxData, 4)) {
-//			initDrv8320h();
-//			initTmc4671();
-//			resetDrv8320hFault();
-//		} else if (!memcmp("reset", usbRxData, 5)) {
-//			resetDrv8320hFault();
-//		} else if (!memcmp("can", usbRxData, 3)) {
-//
-//		} else if (!memcmp("rs485", usbRxData, 5)) {
-//			printf("RS485 TX 1\n");
-//			memset(rs485TxData, 0, 60);
-//			sprintf((char*) rs485TxData, "$ %08lx\n", xTaskGetTickCount());
-//			*((uint32_t *)&rs485TxData[60]) = calculateCrc(rs485TxData, 60);
-//			HAL_UART_Transmit_DMA(&huart2, rs485TxData, 32);
-//			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
-//			printf("RS485 TX 2\n");
-//			osDelay(10);
-//			HAL_UART_Transmit_DMA(&huart2, &rs485TxData[32], 32);
-//			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
-//			printf("RS485 TX 3\n");
-//		} else if (!memcmp("fdcan", usbRxData, 5)) {
-//			sprintf((char*) fdCanTxData, "# %08lx\n", xTaskGetTickCount());
-//			if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, fdCanTxData)
-//					!= HAL_OK) {
-//				Error_Handler();
-//			}
-//			osSemaphoreAcquire(fdCanTxCompletedHandle, 10);
-//
-//		} else if (!memcmp("write", usbRxData, 5)) {
-//			HAL_FLASH_Unlock();
-//			EE_Status ee_status = EE_OK;
-//
-//		  uint32_t flashData = xTaskGetTickCount();
-//
-//			ee_status = EE_WriteVariable32bits(/* idx = */ 1, flashData);
-//
-//			/* Start cleanup IT mode, if cleanup is needed */
-//			if ((ee_status & EE_STATUSMASK_CLEANUP) == EE_STATUSMASK_CLEANUP) {isErasing = 1;ee_status|= EE_CleanUp_IT();}
-//			if ((ee_status & EE_STATUSMASK_ERROR) == EE_STATUSMASK_ERROR) {Error_Handler();}
-//
-//			while (isErasing) { }
-//
-//			/* Lock the Flash Program Erase controller */
-//			HAL_FLASH_Lock();
-//			printf("written: %08lx\n", flashData);
-//		} else if (!memcmp("read", usbRxData, 4)) {
-//			uint32_t flashData;
-//			EE_ReadVariable32bits(/* idx = */ 1, &flashData);
-//			printf("read: %08lx\n", flashData);
-//		} else if (!memcmp("crc", usbRxData, 3)) {
-//			uint32_t crcdata[] = {0x12345678, 0x87654321};
-//			uint32_t crc = HAL_CRC_Calculate(&hcrc, crcdata, 2);
-//			printf("crc1: %08lx\n", crc);
-//			crc = HAL_CRC_Calculate(&hcrc, crcdata, 8);
-//			printf("crc2: %08lx\n", crc);
-//			crcdata[1] = 0x12345678;
-//			crcdata[0] = 0x87654321;
-//			crc = HAL_CRC_Calculate(&hcrc, crcdata, 2);
-//			printf("crc3: %08lx\n", crc);
-//			// https://crccalc.com/?crc=7856&method=crc32&datatype=hex&outtype=0
-//			uint8_t crcdata2[] = {0x78, 0x56};
-//			crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&crcdata2, 2);
-//			printf("crc4: %08lx\n", crc);
-//		}
-//
-//		usbRxData[usbRxDataLength] = 0;
-//		printf("> %s", usbRxData);
 	}
 
   /* USER CODE END 5 */
