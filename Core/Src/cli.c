@@ -61,6 +61,8 @@ static char next[] = "next";
 static CliState state = START;
 static char token[50];
 static int tokenIdx;
+static char origin[100];
+static int originIdx;
 
 void handleNewline();
 void handleDot();
@@ -80,6 +82,9 @@ void processCli(char c) {
 		if (tokenIdx < sizeof(token)) {
 			token[tokenIdx++] = c;
 		}
+	}
+	if (originIdx < sizeof(origin) && c != '\n') {
+		origin[originIdx++] = c;
 	}
 
 	switch (state) {
@@ -244,9 +249,11 @@ void handleAssignment() {
 void handleNewline() {
 	switch (state) {
 	case SYNTAX_ERROR:
-		printf("Syntax error\n");
+		printf("Syntax error: [%.*s%s]\n", originIdx, origin,
+				originIdx == sizeof(origin) ? "..." : "");
 		state = START;
 		tokenIdx = 0;
+		originIdx = 0;
 		break;
 
 	case START:
@@ -278,6 +285,7 @@ void handleNewline() {
 			printf("Assign [%.*s] to dev.config.addr\n", tokenIdx, token);
 		}
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		return;
 	case NEXT_ASSIGN:
@@ -288,6 +296,7 @@ void handleNewline() {
 			printf("Assign [%.*s] to dev.config.next\n", tokenIdx, token);
 		}
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		return;
 
@@ -296,9 +305,10 @@ void handleNewline() {
 	}
 
 	if (tokenIdx != 0) {
-		printf("Can't parse: [%.*s%s]\n", tokenIdx, token,
-				tokenIdx == sizeof(token) ? "..." : "");
+		printf("Can't parse: [%.*s%s]\n", originIdx, origin,
+				originIdx == sizeof(origin) ? "..." : "");
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		return;
 	}
@@ -327,64 +337,77 @@ void handleNewline() {
 	case CRC_POST:
 		doCrcTest();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case READ_FLASH_POST:
 		doReadFlash();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case WRITE_FLASH_POST:
 		doWriteFlash();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case INIT_POST:
 		doInit();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case RESET_DRV_POST:
 		doResetDrv();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case RS_485_POST:
 		doRs485Test();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case FD_CAN_POST:
 		doFdCanTest();
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case DEV:
 		printf("Print entire 'dev' setting tree\n");
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case CONFIG:
 		printf("Print 'dev.config' setting subtree\n");
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case ADDR:
 		printf("Print 'dev.config.addr' value\n");
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	case NEXT:
 		printf("Print 'dev.config.next' value\n");
 		tokenIdx = 0;
+		originIdx = 0;
 		state = START;
 		break;
 	}
 }
 
 void incompleteCommand() {
-	printf("Expected ')' at end of input\n");
+	printf("Expected ')' at end of input: [%.*s%s]\n", originIdx, origin,
+			originIdx == sizeof(origin) ? "..." : "");
 	tokenIdx = 0;
+	originIdx = 0;
 	state = START;
 }
 
@@ -451,7 +474,9 @@ void doResetDrv() {
 }
 
 void invalidValue() {
-	printf("Can't parse value to assign\n");
+	printf("Can't parse value to assign: [%.*s%s]\n", originIdx, origin,
+			originIdx == sizeof(origin) ? "..." : "");
 	tokenIdx = 0;
+	originIdx = 0;
 	state = START;
 }
