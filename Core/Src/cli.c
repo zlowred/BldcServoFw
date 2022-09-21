@@ -58,6 +58,8 @@ static char config[] = "config";
 static char addr[] = "addr";
 static char next[] = "next";
 
+static char testEnum[] = "TEST_ENUM";
+
 static CliState state = START;
 static char token[50];
 static int tokenIdx;
@@ -75,10 +77,11 @@ void doWriteFlash();
 void doInit();
 void doResetDrv();
 void invalidValue();
+char parseValue(uint32_t *value);
 
 void processCli(char c) {
 	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-			|| c == '(' || c == ')') {
+			|| c == '(' || c == ')' || c == '_' || c == '-' || c == '+' || c == '*' || c == '/') {
 		if (tokenIdx < sizeof(token)) {
 			token[tokenIdx++] = c;
 		}
@@ -247,6 +250,7 @@ void handleAssignment() {
 }
 
 void handleNewline() {
+	static uint32_t parsedValue;
 	switch (state) {
 	case SYNTAX_ERROR:
 		printf("Syntax error: [%.*s%s]\n", originIdx, origin,
@@ -278,22 +282,20 @@ void handleNewline() {
 		}
 		break;
 	case ADDR_ASSIGN:
-		// TODO: Actually parse and return error if failed
-		if (tokenIdx == 0) {
+		if (!parseValue(&parsedValue)) {
 			invalidValue();
 		} else {
-			printf("Assign [%.*s] to dev.config.addr\n", tokenIdx, token);
+			printf("Assign 0x%08lX to dev.config.addr\n", parsedValue);
 		}
 		tokenIdx = 0;
 		originIdx = 0;
 		state = START;
 		return;
 	case NEXT_ASSIGN:
-		// TODO: Actually parse and return error if failed
-		if (tokenIdx == 0) {
+		if (!parseValue(&parsedValue)) {
 			invalidValue();
 		} else {
-			printf("Assign [%.*s] to dev.config.next\n", tokenIdx, token);
+			printf("Assign 0x%08lX to dev.config.next\n", parsedValue);
 		}
 		tokenIdx = 0;
 		originIdx = 0;
@@ -479,4 +481,44 @@ void invalidValue() {
 	tokenIdx = 0;
 	originIdx = 0;
 	state = START;
+}
+
+char parseHex(uint32_t *value) {
+	*value = 0;
+	static char c;
+	for (int i = 2; i < tokenIdx; i++) {
+		c = token[i];
+		if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			*value = *value * 16 + (c & 0x0F) + (c >= 'A' ? 9 : 0);
+		} else {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+char parseDec(uint32_t *value) {
+	*value = 0;
+	static char c;
+	for (int i = 0; i < tokenIdx; i++) {
+		c = token[i];
+		if (c >= '0' && c <= '9') {
+			*value = *value * 10 + c - '0';
+		} else {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+char parseValue(uint32_t *value) {
+	if (commandMatch(testEnum)) {
+		*value = 0x321;
+		return 1;
+	} else if (tokenIdx > 2 && token[0] == '0' && token[1] == 'x') {
+		return parseHex(value);
+	} else if (tokenIdx > 0) {
+		return parseDec(value);
+	}
+	return 0;
 }
