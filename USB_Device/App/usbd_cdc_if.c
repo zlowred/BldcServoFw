@@ -36,8 +36,8 @@
 
 extern uint8_t usbRxData[256];
 extern uint32_t usbRxDataLength;
+extern uint32_t usbRxDataPos;
 extern osSemaphoreId_t usbRxCompletedHandle;
-extern osSemaphoreId_t usbTxCompletedHandle;
 
 /* USER CODE END PV */
 
@@ -101,11 +101,6 @@ USBD_CDC_LineCodingTypeDef LineCoding =
   */
 /* Create buffer for reception and transmission           */
 /* It's up to user to redefine and/or remove those define */
-/** Received data over USB are stored in this buffer      */
-uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
-
-/** Data to send over USB CDC are stored in this buffer   */
-uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
@@ -288,6 +283,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
 
 	usbRxDataLength = *Len;
+	usbRxDataPos = 0;
 	osSemaphoreRelease(usbRxCompletedHandle);
 
   return USBD_OK;
@@ -339,7 +335,6 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
   UNUSED(Buf);
   UNUSED(Len);
   UNUSED(epnum);
-  osSemaphoreRelease(usbTxCompletedHandle);
   /* USER CODE END 13 */
   return result;
 }

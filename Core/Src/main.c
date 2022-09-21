@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 
 #include "usbd_cdc_if.h"
 
@@ -34,12 +35,12 @@
 #include "tmc/ic/TMC4671/TMC4671.h"
 #include "eeprom_emul.h"
 #include "interface.h"
+#include "cli.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
-typedef StaticQueue_t osStaticMessageQDef_t;
 typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE BEGIN PTD */
 
@@ -82,7 +83,7 @@ const osThreadAttr_t usbRx_attributes = {
   .stack_size = sizeof(usbRxBuffer),
   .cb_mem = &usbRxControlBlock,
   .cb_size = sizeof(usbRxControlBlock),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for blinker */
 osThreadId_t blinkerHandle;
@@ -131,29 +132,6 @@ const osThreadAttr_t spi2Comm_attributes = {
   .cb_mem = &spi2CommControlBlock,
   .cb_size = sizeof(spi2CommControlBlock),
   .priority = (osPriority_t) osPriorityNormal,
-};
-/* Definitions for usbTx */
-osThreadId_t usbTxHandle;
-uint32_t usbTxBuffer[ 128 ];
-osStaticThreadDef_t usbTxControlBlock;
-const osThreadAttr_t usbTx_attributes = {
-  .name = "usbTx",
-  .stack_mem = &usbTxBuffer[0],
-  .stack_size = sizeof(usbTxBuffer),
-  .cb_mem = &usbTxControlBlock,
-  .cb_size = sizeof(usbTxControlBlock),
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for usbTxQueue */
-osMessageQueueId_t usbTxQueueHandle;
-uint8_t usbTxQueueBuffer[ 8 * sizeof( UsbTxData ) ];
-osStaticMessageQDef_t usbTxQueueControlBlock;
-const osMessageQueueAttr_t usbTxQueue_attributes = {
-  .name = "usbTxQueue",
-  .cb_mem = &usbTxQueueControlBlock,
-  .cb_size = sizeof(usbTxQueueControlBlock),
-  .mq_mem = &usbTxQueueBuffer,
-  .mq_size = sizeof(usbTxQueueBuffer)
 };
 /* Definitions for usbRxCompleted */
 osSemaphoreId_t usbRxCompletedHandle;
@@ -219,14 +197,6 @@ const osSemaphoreAttr_t spi2TxCompleted_attributes = {
   .cb_mem = &spi2TxCompletedControlBlock,
   .cb_size = sizeof(spi2TxCompletedControlBlock),
 };
-/* Definitions for usbTxCompleted */
-osSemaphoreId_t usbTxCompletedHandle;
-osStaticSemaphoreDef_t usbTxCompletedControlBlock;
-const osSemaphoreAttr_t usbTxCompleted_attributes = {
-  .name = "usbTxCompleted",
-  .cb_mem = &usbTxCompletedControlBlock,
-  .cb_size = sizeof(usbTxCompletedControlBlock),
-};
 /* Definitions for fdCanTxCompleted */
 osSemaphoreId_t fdCanTxCompletedHandle;
 osStaticSemaphoreDef_t fdCanTxCompletedControlBlock;
@@ -247,14 +217,15 @@ FDCAN_RxHeaderTypeDef RxHeader;
 
 uint8_t rs485TxData[64];
 uint8_t rs485RxData[128];
-uint16_t rs485RxDataPos = 0;
-uint16_t rs485RxDataLength = 0;
+uint16_t rs485RxDataPos;
+uint16_t rs485RxDataLength;
 
 
 uint8_t usbRxData[256];
 uint32_t usbRxDataLength;
+uint32_t usbRxDataPos;
 
-__IO uint32_t isErasing = 0;
+volatile uint32_t isErasing;
 
 /* USER CODE END PV */
 
@@ -273,7 +244,6 @@ void blink(void *argument);
 void handleRs485(void *argument);
 void handleFdCan(void *argument);
 void handleSpi2(void *argument);
-void handleUsbTx(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -428,9 +398,6 @@ int main(void)
   /* creation of spi2TxCompleted */
   spi2TxCompletedHandle = osSemaphoreNew(1, 1, &spi2TxCompleted_attributes);
 
-  /* creation of usbTxCompleted */
-  usbTxCompletedHandle = osSemaphoreNew(1, 1, &usbTxCompleted_attributes);
-
   /* creation of fdCanTxCompleted */
   fdCanTxCompletedHandle = osSemaphoreNew(1, 1, &fdCanTxCompleted_attributes);
 
@@ -441,10 +408,6 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
-
-  /* Create the queue(s) */
-  /* creation of usbTxQueue */
-  usbTxQueueHandle = osMessageQueueNew (8, sizeof(UsbTxData), &usbTxQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
 	/* add queues, ... */
@@ -465,9 +428,6 @@ int main(void)
 
   /* creation of spi2Comm */
   spi2CommHandle = osThreadNew(handleSpi2, NULL, &spi2Comm_attributes);
-
-  /* creation of usbTx */
-  usbTxHandle = osThreadNew(handleUsbTx, NULL, &usbTx_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
@@ -960,6 +920,7 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
 	if (huart->Instance == USART2) {
+		printf("RX:%3d bytes\n", size);
 		rs485RxDataLength = size;
 		osSemaphoreRelease(rs485RxCompletedHandle);
 	}
@@ -989,13 +950,54 @@ void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan,
 	}
 }
 
-void transmitUsb(UsbTxData *usbTransmitData) {
-	osMessageQueuePut(usbTxQueueHandle, usbTransmitData, 0, osWaitForever);
-}
-
 uint32_t calculateCrc(uint8_t *data, uint16_t length) {
 	return HAL_CRC_Calculate(&hcrc, (uint32_t *)data, length);
 }
+
+int _write(int file, char *ptr, int len) {
+	static uint8_t rc = USBD_OK;
+
+	do {
+		if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
+			break;
+		}
+		rc = CDC_Transmit_FS((uint8_t *)ptr, len);
+	} while (USBD_BUSY == rc);
+
+	return len;
+}
+
+char nextChar() {
+	while (usbRxDataPos >= usbRxDataLength) {
+		USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+		if (osSemaphoreAcquire(usbRxCompletedHandle, 10) != osOK) {
+			continue;
+		}
+		if (!usbRxDataLength) {
+			continue;
+		}
+	}
+	return usbRxData[usbRxDataPos++];
+}
+
+void startDfu() {
+	osKernelLock();
+	HAL_GPIO_WritePin(DIAG_1_GPIO_Port, DIAG_1_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(DIAG_2_GPIO_Port, DIAG_2_Pin, GPIO_PIN_SET);
+	HAL_PWR_EnableBkUpAccess();
+	HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xDEAD);
+	HAL_PWR_DisableBkUpAccess();
+	for (int i = 0; i < 10; i++) {
+		HAL_Delay(50);
+		HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
+		HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
+		HAL_Delay(200);
+		HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
+		HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
+	}
+	NVIC_SystemReset();
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_handleUsbRx */
@@ -1009,110 +1011,104 @@ void handleUsbRx(void *argument)
 {
   /* USER CODE BEGIN 5 */
 
-	static UsbTxData usbData;
 	/* Infinite loop */
 	for (;;) {
-		USBD_CDC_ReceivePacket(&hUsbDeviceFS);
-		if (osSemaphoreAcquire(usbRxCompletedHandle, 10) != osOK) {
-			continue;
-		}
-		if (!usbRxDataLength) {
-			continue;
-		}
-		if (!memcmp("dfu", usbRxData, 3)) {
-			osKernelLock();
-			HAL_GPIO_WritePin(DIAG_1_GPIO_Port, DIAG_1_Pin, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(DIAG_2_GPIO_Port, DIAG_2_Pin, GPIO_PIN_SET);
-			HAL_PWR_EnableBkUpAccess();
-			HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xDEAD);
-			HAL_PWR_DisableBkUpAccess();
-			for (int i = 0; i < 10; i++) {
-				HAL_Delay(50);
-				HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
-				HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
-				HAL_Delay(200);
-				HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
-				HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
-			}
-			NVIC_SystemReset();
-		} else if (!memcmp("init", usbRxData, 4)) {
-			initDrv8320h();
-			initTmc4671();
-			resetDrv8320hFault();
-		} else if (!memcmp("reset", usbRxData, 5)) {
-			resetDrv8320hFault();
-		} else if (!memcmp("can", usbRxData, 3)) {
-
-		} else if (!memcmp("rs485", usbRxData, 5)) {
-			memset(rs485TxData, 0, 60);
-			sprintf((char*) rs485TxData, "$ %08lx\n", xTaskGetTickCount());
-			*((uint32_t *)&rs485TxData[60]) = calculateCrc(rs485TxData, 60);
-			HAL_UART_Transmit_DMA(&huart2, rs485TxData, 64);
-			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
-		} else if (!memcmp("fdcan", usbRxData, 5)) {
-			sprintf((char*) fdCanTxData, "# %08lx\n", xTaskGetTickCount());
-			if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, fdCanTxData)
-					!= HAL_OK) {
-				Error_Handler();
-			}
-			osSemaphoreAcquire(fdCanTxCompletedHandle, 10);
-
-		} else if (!memcmp("write", usbRxData, 5)) {
-			HAL_FLASH_Unlock();
-			EE_Status ee_status = EE_OK;
-
-		  uint32_t flashData = xTaskGetTickCount();
-
-			ee_status = EE_WriteVariable32bits(/* idx = */ 1, flashData);
-
-			/* Start cleanup IT mode, if cleanup is needed */
-			if ((ee_status & EE_STATUSMASK_CLEANUP) == EE_STATUSMASK_CLEANUP) {isErasing = 1;ee_status|= EE_CleanUp_IT();}
-			if ((ee_status & EE_STATUSMASK_ERROR) == EE_STATUSMASK_ERROR) {Error_Handler();}
-
-			while (isErasing) { }
-
-			/* Lock the Flash Program Erase controller */
-			HAL_FLASH_Lock();
-			sprintf((char*) usbData.data, "written: %08lx\n", flashData);
-			usbData.size = 18;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
-		} else if (!memcmp("read", usbRxData, 4)) {
-			uint32_t flashData;
-			EE_ReadVariable32bits(/* idx = */ 1, &flashData);
-			sprintf((char*) usbData.data, "read: %08lx\n", flashData);
-			usbData.size = 15;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
-		} else if (!memcmp("crc", usbRxData, 3)) {
-			uint32_t crcdata[] = {0x12345678, 0x87654321};
-			uint32_t crc = HAL_CRC_Calculate(&hcrc, crcdata, 2);
-			sprintf((char*) usbData.data, "crc1: %08lx\n", crc);
-			usbData.size = 15;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
-			crc = HAL_CRC_Calculate(&hcrc, crcdata, 8);
-			sprintf((char*) usbData.data, "crc2: %08lx\n", crc);
-			usbData.size = 15;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
-			crcdata[1] = 0x12345678;
-			crcdata[0] = 0x87654321;
-			crc = HAL_CRC_Calculate(&hcrc, crcdata, 2);
-			sprintf((char*) usbData.data, "crc3: %08lx\n", crc);
-			usbData.size = 15;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
-			// https://crccalc.com/?crc=7856&method=crc32&datatype=hex&outtype=0
-			uint8_t crcdata2[] = {0x78, 0x56};
-			crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&crcdata2, 2);
-			sprintf((char*) usbData.data, "crc4: %08lx\n", crc);
-			usbData.size = 15;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
-		}
-
-
-
-		memcpy(&usbData.data[2], usbRxData, usbRxDataLength);
-		usbData.data[0] = '>';
-		usbData.data[1] = ' ';
-		usbData.size = usbRxDataLength + 2;
-		osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
+		processCli(nextChar());
+//		if (strnlen(usbRxData, usbRxDataLength) == usbRxDataLength) {
+//			printf("Too long line: [%.*s]\n", usbRxDataLength, usbRxData);
+//			continue;
+//		}
+//		printf("Line: [%s]\n", usbRxData);
+//		USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+//		if (osSemaphoreAcquire(usbRxCompletedHandle, 10) != osOK) {
+//			continue;
+//		}
+//		if (!usbRxDataLength) {
+//			continue;
+//		}
+//		if (!memcmp("dfu", usbRxData, 3)) {
+//			osKernelLock();
+//			HAL_GPIO_WritePin(DIAG_1_GPIO_Port, DIAG_1_Pin, GPIO_PIN_SET);
+//			HAL_GPIO_WritePin(DIAG_2_GPIO_Port, DIAG_2_Pin, GPIO_PIN_SET);
+//			HAL_PWR_EnableBkUpAccess();
+//			HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xDEAD);
+//			HAL_PWR_DisableBkUpAccess();
+//			for (int i = 0; i < 10; i++) {
+//				HAL_Delay(50);
+//				HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
+//				HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
+//				HAL_Delay(200);
+//				HAL_GPIO_TogglePin(DIAG_1_GPIO_Port, DIAG_1_Pin);
+//				HAL_GPIO_TogglePin(DIAG_2_GPIO_Port, DIAG_2_Pin);
+//			}
+//			NVIC_SystemReset();
+//		} else if (!memcmp("init", usbRxData, 4)) {
+//			initDrv8320h();
+//			initTmc4671();
+//			resetDrv8320hFault();
+//		} else if (!memcmp("reset", usbRxData, 5)) {
+//			resetDrv8320hFault();
+//		} else if (!memcmp("can", usbRxData, 3)) {
+//
+//		} else if (!memcmp("rs485", usbRxData, 5)) {
+//			printf("RS485 TX 1\n");
+//			memset(rs485TxData, 0, 60);
+//			sprintf((char*) rs485TxData, "$ %08lx\n", xTaskGetTickCount());
+//			*((uint32_t *)&rs485TxData[60]) = calculateCrc(rs485TxData, 60);
+//			HAL_UART_Transmit_DMA(&huart2, rs485TxData, 32);
+//			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
+//			printf("RS485 TX 2\n");
+//			osDelay(10);
+//			HAL_UART_Transmit_DMA(&huart2, &rs485TxData[32], 32);
+//			osSemaphoreAcquire(rs485TxCompletedHandle, 10);
+//			printf("RS485 TX 3\n");
+//		} else if (!memcmp("fdcan", usbRxData, 5)) {
+//			sprintf((char*) fdCanTxData, "# %08lx\n", xTaskGetTickCount());
+//			if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, fdCanTxData)
+//					!= HAL_OK) {
+//				Error_Handler();
+//			}
+//			osSemaphoreAcquire(fdCanTxCompletedHandle, 10);
+//
+//		} else if (!memcmp("write", usbRxData, 5)) {
+//			HAL_FLASH_Unlock();
+//			EE_Status ee_status = EE_OK;
+//
+//		  uint32_t flashData = xTaskGetTickCount();
+//
+//			ee_status = EE_WriteVariable32bits(/* idx = */ 1, flashData);
+//
+//			/* Start cleanup IT mode, if cleanup is needed */
+//			if ((ee_status & EE_STATUSMASK_CLEANUP) == EE_STATUSMASK_CLEANUP) {isErasing = 1;ee_status|= EE_CleanUp_IT();}
+//			if ((ee_status & EE_STATUSMASK_ERROR) == EE_STATUSMASK_ERROR) {Error_Handler();}
+//
+//			while (isErasing) { }
+//
+//			/* Lock the Flash Program Erase controller */
+//			HAL_FLASH_Lock();
+//			printf("written: %08lx\n", flashData);
+//		} else if (!memcmp("read", usbRxData, 4)) {
+//			uint32_t flashData;
+//			EE_ReadVariable32bits(/* idx = */ 1, &flashData);
+//			printf("read: %08lx\n", flashData);
+//		} else if (!memcmp("crc", usbRxData, 3)) {
+//			uint32_t crcdata[] = {0x12345678, 0x87654321};
+//			uint32_t crc = HAL_CRC_Calculate(&hcrc, crcdata, 2);
+//			printf("crc1: %08lx\n", crc);
+//			crc = HAL_CRC_Calculate(&hcrc, crcdata, 8);
+//			printf("crc2: %08lx\n", crc);
+//			crcdata[1] = 0x12345678;
+//			crcdata[0] = 0x87654321;
+//			crc = HAL_CRC_Calculate(&hcrc, crcdata, 2);
+//			printf("crc3: %08lx\n", crc);
+//			// https://crccalc.com/?crc=7856&method=crc32&datatype=hex&outtype=0
+//			uint8_t crcdata2[] = {0x78, 0x56};
+//			crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&crcdata2, 2);
+//			printf("crc4: %08lx\n", crc);
+//		}
+//
+//		usbRxData[usbRxDataLength] = 0;
+//		printf("> %s", usbRxData);
 	}
 
   /* USER CODE END 5 */
@@ -1189,17 +1185,20 @@ void handleRs485(void *argument)
 		if (osSemaphoreAcquire(rs485RxCompletedHandle, 10) != osOK) {
 			continue;
 		}
-		for (uint16_t pos = 1; pos <= rs485RxDataLength; pos++) {
-			if (handleCommand(rs485RxData, rs485RxDataPos + pos, RS485)) {
-				memmove(rs485RxData, &rs485RxData[rs485RxDataPos + pos], sizeof(rs485RxData) - rs485RxDataLength - pos);
-				rs485RxDataPos = 0;
+		uint16_t newDataPos = rs485RxDataPos;
+		for (;rs485RxDataLength > 0; rs485RxDataLength--) {
+			newDataPos++;
+			if (handleCommand(rs485RxData, newDataPos, RS485)) {
+				memmove(rs485RxData, &rs485RxData[newDataPos], rs485RxDataLength);
+				newDataPos = 0;
 			}
 		}
-		if (rs485RxDataPos + rs485RxDataLength == 128) {
+		if (newDataPos == 128) {
 			memmove(rs485RxData, &rs485RxData[64], 64);
-			rs485RxDataPos = 64;
+			newDataPos = 64;
 		}
-		rs485RxDataLength = 0;
+		printf("%3d -> %3d\n", rs485RxDataPos, newDataPos);
+		rs485RxDataPos = newDataPos;
 	}
   /* USER CODE END handleRs485 */
 }
@@ -1214,8 +1213,6 @@ void handleRs485(void *argument)
 void handleFdCan(void *argument)
 {
   /* USER CODE BEGIN handleFdCan */
-	static UsbTxData usbData;
-
 	/* Infinite loop */
 	for (;;) {
 		if (osSemaphoreAcquire(fdCanRxCompletedHandle, 10) != osOK) {
@@ -1231,9 +1228,8 @@ void handleFdCan(void *argument)
 			}
 			osSemaphoreAcquire(fdCanTxCompletedHandle, 10);
 		} else {
-			memcpy(usbData.data, fdCanRxData, 11);
-			usbData.size = 11;
-			osMessageQueuePut(usbTxQueueHandle, &usbData, 0, osWaitForever);
+			fdCanRxData[12] = 0;
+			printf((char *)fdCanRxData);
 		}
 	}
   /* USER CODE END handleFdCan */
@@ -1256,26 +1252,6 @@ void handleSpi2(void *argument)
 		}
 	}
   /* USER CODE END handleSpi2 */
-}
-
-/* USER CODE BEGIN Header_handleUsbTx */
-/**
- * @brief Function implementing the usbTx thread.
- * @param argument: Not used
- * @retval None
- */
-/* USER CODE END Header_handleUsbTx */
-void handleUsbTx(void *argument)
-{
-  /* USER CODE BEGIN handleUsbTx */
-	/* Infinite loop */
-	static UsbTxData txData;
-	for (;;) {
-		osMessageQueueGet(usbTxQueueHandle, &txData, NULL, osWaitForever);
-		CDC_Transmit_FS(txData.data, txData.size);
-		osSemaphoreAcquire(usbTxCompletedHandle, 10);
-	}
-  /* USER CODE END handleUsbTx */
 }
 
 /**

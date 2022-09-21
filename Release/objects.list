@@ -3,6 +3,7 @@
 "./3rd_party/tmc/ic/TMC4671/TMC4671.o"
 "./Core/Src/acs711.o"
 "./Core/Src/app_freertos.o"
+"./Core/Src/cli.o"
 "./Core/Src/config.o"
 "./Core/Src/drv8320h.o"
 "./Core/Src/gray_encoder.o"
