@@ -19,6 +19,7 @@
 extern volatile uint32_t isErasing;
 
 typedef enum {
+	SYNTAX_ERROR,
 	START,
 	DFU_PRE,
 	DFU_POST,
@@ -36,6 +37,12 @@ typedef enum {
 	RS_485_POST,
 	FD_CAN_PRE,
 	FD_CAN_POST,
+	DEV,
+	CONFIG,
+	ADDR,
+	ADDR_ASSIGN,
+	NEXT,
+	NEXT_ASSIGN,
 } CliState;
 
 static char dfu[] = "dfu(";
@@ -46,12 +53,18 @@ static char init[] = "init(";
 static char resetDrv[] = "resetDrv(";
 static char rs485Test[] = "rs485Test(";
 static char fdCanTest[] = "fdCanTest(";
+static char dev[] = "dev";
+static char config[] = "config";
+static char addr[] = "addr";
+static char next[] = "next";
 
 static CliState state = START;
 static char token[50];
 static int tokenIdx;
 
 void handleNewline();
+void handleDot();
+void handleAssignment();
 void incompleteCommand();
 void doCrcTest();
 char commandMatch(char command[]);
@@ -59,6 +72,7 @@ void doReadFlash();
 void doWriteFlash();
 void doInit();
 void doResetDrv();
+void invalidValue();
 
 void processCli(char c) {
 	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
@@ -96,6 +110,7 @@ void processCli(char c) {
 			tokenIdx = 0;
 		}
 		break;
+	case SYNTAX_ERROR:
 	case DFU_POST:
 	case CRC_POST:
 	case READ_FLASH_POST:
@@ -104,6 +119,12 @@ void processCli(char c) {
 	case RESET_DRV_POST:
 	case RS_485_POST:
 	case FD_CAN_POST:
+	case DEV:
+	case CONFIG:
+	case ADDR:
+	case ADDR_ASSIGN:
+	case NEXT:
+	case NEXT_ASSIGN:
 		break;
 	case DFU_PRE:
 		if (tokenIdx == 1 && token[0] == ')') {
@@ -157,10 +178,123 @@ void processCli(char c) {
 
 	if (c == '\n') {
 		handleNewline();
+	} else if (c == '.') {
+		handleDot();
+	} else if (c == '=') {
+		handleAssignment();
+	}
+}
+
+void handleDot() {
+	if (tokenIdx == 0) {
+		state = SYNTAX_ERROR;
+		return;
+	}
+
+	switch (state) {
+	case START:
+		if (commandMatch(dev)) {
+			state = DEV;
+			tokenIdx = 0;
+		}
+		break;
+	case DEV:
+		if (commandMatch(config)) {
+			state = CONFIG;
+			tokenIdx = 0;
+		}
+		break;
+	case CONFIG:
+		if (commandMatch(addr)) {
+			state = ADDR;
+			tokenIdx = 0;
+		} else if (commandMatch(next)) {
+			state = NEXT;
+			tokenIdx = 0;
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+void handleAssignment() {
+	if (tokenIdx == 0) {
+		state = SYNTAX_ERROR;
+		return;
+	}
+
+	switch (state) {
+	case CONFIG:
+		if (commandMatch(addr)) {
+			state = ADDR_ASSIGN;
+			tokenIdx = 0;
+		} else if (commandMatch(next)) {
+			state = NEXT_ASSIGN;
+			tokenIdx = 0;
+		}
+		break;
+
+	default:
+		break;
 	}
 }
 
 void handleNewline() {
+	switch (state) {
+	case SYNTAX_ERROR:
+		printf("Syntax error\n");
+		state = START;
+		tokenIdx = 0;
+		break;
+
+	case START:
+		if (commandMatch(dev)) {
+			state = DEV;
+			tokenIdx = 0;
+		}
+		break;
+	case DEV:
+		if (commandMatch(config)) {
+			state = CONFIG;
+			tokenIdx = 0;
+		}
+		break;
+	case CONFIG:
+		if (commandMatch(addr)) {
+			state = ADDR;
+			tokenIdx = 0;
+		} else if (commandMatch(next)) {
+			state = NEXT;
+			tokenIdx = 0;
+		}
+		break;
+	case ADDR_ASSIGN:
+		// TODO: Actually parse and return error if failed
+		if (tokenIdx == 0) {
+			invalidValue();
+		} else {
+			printf("Assign [%.*s] to dev.config.addr\n", tokenIdx, token);
+		}
+		tokenIdx = 0;
+		state = START;
+		return;
+	case NEXT_ASSIGN:
+		// TODO: Actually parse and return error if failed
+		if (tokenIdx == 0) {
+			invalidValue();
+		} else {
+			printf("Assign [%.*s] to dev.config.next\n", tokenIdx, token);
+		}
+		tokenIdx = 0;
+		state = START;
+		return;
+
+	default:
+		break;
+	}
+
 	if (tokenIdx != 0) {
 		printf("Can't parse: [%.*s%s]\n", tokenIdx, token,
 				tokenIdx == sizeof(token) ? "..." : "");
@@ -169,7 +303,10 @@ void handleNewline() {
 		return;
 	}
 	switch (state) {
+	case SYNTAX_ERROR:
 	case START:
+	case ADDR_ASSIGN:
+	case NEXT_ASSIGN:
 		break;
 	case DFU_PRE:
 	case CRC_PRE:
@@ -219,6 +356,26 @@ void handleNewline() {
 		break;
 	case FD_CAN_POST:
 		doFdCanTest();
+		tokenIdx = 0;
+		state = START;
+		break;
+	case DEV:
+		printf("Print entire 'dev' setting tree\n");
+		tokenIdx = 0;
+		state = START;
+		break;
+	case CONFIG:
+		printf("Print 'dev.config' setting subtree\n");
+		tokenIdx = 0;
+		state = START;
+		break;
+	case ADDR:
+		printf("Print 'dev.config.addr' value\n");
+		tokenIdx = 0;
+		state = START;
+		break;
+	case NEXT:
+		printf("Print 'dev.config.next' value\n");
 		tokenIdx = 0;
 		state = START;
 		break;
@@ -291,4 +448,10 @@ void doInit() {
 
 void doResetDrv() {
 	resetDrv8320hFault();
+}
+
+void invalidValue() {
+	printf("Can't parse value to assign\n");
+	tokenIdx = 0;
+	state = START;
 }
