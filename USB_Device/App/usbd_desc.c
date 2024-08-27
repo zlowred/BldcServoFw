@@ -64,9 +64,9 @@
 
 #define USBD_VID     1155
 #define USBD_LANGID_STRING     1033
-#define USBD_MANUFACTURER_STRING     "STMicroelectronics"
+#define USBD_MANUFACTURER_STRING     "MaxMatveev"
 #define USBD_PID     22336
-#define USBD_PRODUCT_STRING     "STM32 Virtual ComPort"
+#define USBD_PRODUCT_STRING     "BLDC Servo ComPort"
 #define USBD_CONFIGURATION_STRING     "CDC Config"
 #define USBD_INTERFACE_STRING     "CDC Interface"
 
@@ -338,7 +338,9 @@ uint8_t * USBD_CDC_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *len
   */
 static void Get_SerialNum(void)
 {
-  uint32_t deviceserial0, deviceserial1, deviceserial2;
+  uint32_t deviceserial0;
+  uint32_t deviceserial1;
+  uint32_t deviceserial2;
 
   deviceserial0 = *(uint32_t *) DEVICE_ID1;
   deviceserial1 = *(uint32_t *) DEVICE_ID2;

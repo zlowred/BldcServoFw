@@ -24,12 +24,12 @@
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1214:19:HAL_RTCEx_DisableBypassShadow	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1263:13:HAL_RTCEx_AlarmBEventCallback	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1279:19:HAL_RTCEx_PollForAlarmBEvent	16	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1346:19:HAL_RTCEx_SetTamper	16	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1409:19:HAL_RTCEx_SetTamper_IT	16	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1346:19:HAL_RTCEx_SetTamper	20	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1409:19:HAL_RTCEx_SetTamper_IT	20	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1479:19:HAL_RTCEx_DeactivateTamper	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1512:19:HAL_RTCEx_PollForTamperEvent	24	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1545:19:HAL_RTCEx_SetInternalTamper	8	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1573:19:HAL_RTCEx_SetInternalTamper_IT	8	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1545:19:HAL_RTCEx_SetInternalTamper	0	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1573:19:HAL_RTCEx_SetInternalTamper_IT	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1607:19:HAL_RTCEx_DeactivateInternalTamper	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1637:19:HAL_RTCEx_PollForInternalTamperEvent	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_rtc_ex.c:1822:13:HAL_RTCEx_Tamper1EventCallback	0	static

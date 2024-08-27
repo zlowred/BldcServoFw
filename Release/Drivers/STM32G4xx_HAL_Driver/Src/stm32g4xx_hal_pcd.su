@@ -24,7 +24,7 @@
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1466:19:HAL_PCD_EP_Receive	16	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1497:10:HAL_PCD_EP_GetRxCount	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1509:19:HAL_PCD_EP_Transmit	16	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1542:19:HAL_PCD_EP_SetStall	16	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1542:19:HAL_PCD_EP_SetStall	8	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1580:19:HAL_PCD_EP_ClrStall	16	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1616:19:HAL_PCD_EP_Flush	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c:1630:19:HAL_PCD_ActivateRemoteWakeup	0	static

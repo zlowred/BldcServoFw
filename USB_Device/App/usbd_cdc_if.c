@@ -101,6 +101,11 @@ USBD_CDC_LineCodingTypeDef LineCoding =
   */
 /* Create buffer for reception and transmission           */
 /* It's up to user to redefine and/or remove those define */
+/** Received data over USB are stored in this buffer      */
+uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
+
+/** Data to send over USB CDC are stored in this buffer   */
+uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 

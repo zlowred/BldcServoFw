@@ -110,6 +110,7 @@ void Error_Handler(void);
 #define MODE_0_GPIO_Port GPIOB
 #define MODE_45_Pin GPIO_PIN_7
 #define MODE_45_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 uint32_t calculateCrc(uint8_t *data, uint16_t length);

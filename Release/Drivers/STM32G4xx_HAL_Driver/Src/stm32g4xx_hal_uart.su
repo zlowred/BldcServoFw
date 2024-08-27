@@ -23,7 +23,7 @@
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:2588:13:HAL_UART_RxCpltCallback	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:2603:13:HAL_UART_RxHalfCpltCallback	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:2618:13:HAL_UART_ErrorCallback	0	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:3751:13:UART_DMAError	8	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:3751:13:UART_DMAError	16	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:3791:13:UART_DMAAbortOnError	8	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:2633:13:HAL_UART_AbortCpltCallback	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c:1901:19:HAL_UART_Abort_IT	16	static,ignoring_inline_asm

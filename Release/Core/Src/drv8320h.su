@@ -1,7 +1,7 @@
-../Core/Src/drv8320h.c:19:6:setPinState	40	static
-../Core/Src/drv8320h.c:48:9:hasDrv8320hFailure	8	static
-../Core/Src/drv8320h.c:52:6:setDrv8320hMode	16	static
-../Core/Src/drv8320h.c:78:6:setDrv8320hIDrive	16	static
-../Core/Src/drv8320h.c:124:6:setDrv8320hVdsOvercurrent	16	static
-../Core/Src/drv8320h.c:37:6:initDrv8320h	8	static
-../Core/Src/drv8320h.c:169:6:resetDrv8320hFault	8	static
+../Core/Src/drv8320h.c:17:6:setPinState	40	static
+../Core/Src/drv8320h.c:46:9:hasDrv8320hFailure	8	static
+../Core/Src/drv8320h.c:50:6:setDrv8320hMode	16	static
+../Core/Src/drv8320h.c:76:6:setDrv8320hIDrive	16	static
+../Core/Src/drv8320h.c:121:6:setDrv8320hVdsOvercurrent	16	static
+../Core/Src/drv8320h.c:35:6:initDrv8320h	8	static
+../Core/Src/drv8320h.c:166:6:resetDrv8320hFault	8	static

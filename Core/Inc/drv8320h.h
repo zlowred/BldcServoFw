@@ -39,8 +39,8 @@ typedef enum {
 } Drv8320hVdsOvercurrent;
 
 #define DefaultDrv8320hMode PWM_6X
-#define DefaultDrv8320hDriveCurrent IDRV_10MA
-#define DefaultDrv8320hVdsOvercurrent VDS_260MV
+#define DefaultDrv8320hDriveCurrent IDRV_1000MA
+#define DefaultDrv8320hVdsOvercurrent VDS_600MV
 
 void initDrv8320h();
 uint8_t hasDrv8320hFailure();

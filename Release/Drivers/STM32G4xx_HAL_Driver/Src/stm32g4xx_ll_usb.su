@@ -15,5 +15,5 @@
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c:714:19:USB_ActivateRemoteWakeup	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c:726:19:USB_DeActivateRemoteWakeup	0	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c:741:6:USB_WritePMA	0	static
-../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c:366:19:USB_EPStartXfer	24	static
+../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c:366:19:USB_EPStartXfer	32	static
 ../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c:777:6:USB_ReadPMA	20	static

@@ -5,6 +5,7 @@
  *      Author: matveev
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -15,429 +16,313 @@
 #include "acs711.h"
 #include "tmc4671.h"
 #include "drv8320h.h"
+#include "microrl.h"
+
+typedef struct PathEntry {
+	const char *const name;
+} PathEntry;
+
+static const PathEntry PATH_DEV = { "/dev" };
+static const PathEntry PATH_DEV_FOC = { "/dev/foc" };
+static const PathEntry PATH_DEV_FOC_CONF = { "/dev/foc/conf" };
+static const PathEntry PATH_DEV_FOC_STATE = { "/dev/foc/state" };
+static const PathEntry PATH_DEV_DRV_SW = { "/dev/drv-sw" };
+static const PathEntry PATH_DEV_DRV_SW_CONF = { "/dev/drv-sw/conf" };
+static const PathEntry PATH_DEV_DRV_SW_STATE = { "/dev/drv-sw/state" };
+static const PathEntry PATH_DEV_DRV_HW = { "/dev/drv-hw" };
+static const PathEntry PATH_DEV_DRV_HW_CONF = { "/dev/drv-hw/conf" };
+static const PathEntry PATH_DEV_DRV_HW_STATE = { "/dev/drv-hw/state" };
+static const PathEntry PATH_DEV_SPI = { "/dev/spi" };
+static const PathEntry PATH_DEV_SPI_CONF = { "/dev/spi/conf" };
+static const PathEntry PATH_DEV_SPI_STATE = { "/dev/spi/state" };
+static const PathEntry PATH_DEV_GPIO = { "/dev/gpio" };
+static const PathEntry PATH_DEV_GPIO_CONF = { "/dev/gpio/conf" };
+static const PathEntry PATH_DEV_GPIO_STATE = { "/dev/gpio/state" };
+
+static const PathEntry *const PATHS[] = { &PATH_DEV, &PATH_DEV_FOC,
+		&PATH_DEV_FOC_CONF, &PATH_DEV_FOC_STATE, &PATH_DEV_DRV_SW,
+		&PATH_DEV_DRV_SW_CONF, &PATH_DEV_DRV_SW_STATE, &PATH_DEV_DRV_HW,
+		&PATH_DEV_DRV_HW_CONF, &PATH_DEV_DRV_HW_STATE, &PATH_DEV_SPI,
+		&PATH_DEV_SPI_CONF, &PATH_DEV_SPI_STATE, &PATH_DEV_GPIO,
+		&PATH_DEV_GPIO_CONF, &PATH_DEV_GPIO_STATE };
+
+#define CMD_DFU 	"dfu"
+#define CMD_TEST 	"test"
+#define CMD_CD 		"cd"
+
+const char *const commands[] = { CMD_CD, CMD_DFU, CMD_TEST };
+
+#define SUBCMD_TEST_CRC 	"crc"
+#define SUBCMD_TEST_FLASH	"flash"
+
+const char *const testSubcommands[] = { SUBCMD_TEST_CRC, SUBCMD_TEST_FLASH };
+
+#define SUBCMD_TEST_FLASH_READ	"read"
+#define SUBCMD_TEST_FLASH_WRITE	"write"
+
+const char *const testFlashSubcommands[] = { SUBCMD_TEST_FLASH_READ,
+SUBCMD_TEST_FLASH_WRITE };
+
+char *completions[16];
 
 extern volatile uint32_t isErasing;
 
-typedef enum {
-	SYNTAX_ERROR,
-	START,
-	DFU_PRE,
-	DFU_POST,
-	CRC_PRE,
-	CRC_POST,
-	READ_FLASH_PRE,
-	READ_FLASH_POST,
-	WRITE_FLASH_PRE,
-	WRITE_FLASH_POST,
-	INIT_PRE,
-	INIT_POST,
-	RESET_DRV_PRE,
-	RESET_DRV_POST,
-	RS_485_PRE,
-	RS_485_POST,
-	FD_CAN_PRE,
-	FD_CAN_POST,
-	DEV,
-	CONFIG,
-	ADDR,
-	ADDR_ASSIGN,
-	NEXT,
-	NEXT_ASSIGN,
-} CliState;
-
-static char dfu[] = "dfu(";
-static char crcTest[] = "crcTest(";
-static char readFlash[] = "readFlash(";
-static char writeFlash[] = "writeFlash(";
-static char init[] = "init(";
-static char resetDrv[] = "resetDrv(";
-static char rs485Test[] = "rs485Test(";
-static char fdCanTest[] = "fdCanTest(";
-static char dev[] = "dev";
-static char config[] = "config";
-static char addr[] = "addr";
-static char next[] = "next";
-
-static char testEnum[] = "TEST_ENUM";
-
-static CliState state = START;
-static char token[50];
-static int tokenIdx;
-static char origin[100];
-static int originIdx;
-
-void handleNewline();
-void handleDot();
-void handleAssignment();
-void incompleteCommand();
 void doCrcTest();
-char commandMatch(char command[]);
 void doReadFlash();
 void doWriteFlash();
 void doInit();
 void doResetDrv();
-void invalidValue();
-char parseValue(uint32_t *value);
+
+microrl_t rl;
+microrl_t *prl = &rl;
+const PathEntry *current = NULL;
+
+const PathEntry* find(const char *path) {
+	for (int i = 0; i < sizeof(PATHS) / sizeof(PathEntry*); i++) {
+		if (strcmp(PATHS[i]->name, path) == 0) {
+			return PATHS[i];
+		}
+	}
+	return NULL;
+}
+
+int level(const char *path) {
+	int i = 0;
+	while (*path != 0) {
+		if (*path == '/') {
+			i++;
+		}
+		path++;
+	}
+	return i;
+}
+
+static char fullPath[64];
+const char* getFullPath(const char *path) {
+	if (path[0] == '/') {
+		strcpy(fullPath, path);
+	} else {
+		sprintf(fullPath, "%s/%s", current == NULL ? "" : current->name, path);
+	}
+	return fullPath;
+}
+
+int addCompletion(int index, const char *value) {
+	if (index == sizeof(completions) / sizeof(char*) - 3) {
+		return index;
+	}
+	completions[index] = (char*) value;
+	return index + 1;
+}
+
+void printCli(const char *str) {
+	printf(str);
+}
+
+void initCli() {
+	if (PATHS[0] != NULL) {
+		microrl_init(prl, printCli);
+		microrl_set_execute_callback(prl, executeCli);
+		microrl_set_complete_callback(prl, completeCli);
+		microrl_set_prompt_callback(prl, promptCli);
+	}
+}
+
+int executeCli(int argc, const char *const*argv) {
+	if (argc > 0) {
+		const char *cmd = argv[0];
+		if (strcmp(cmd, CMD_DFU) == 0) {
+			if (argc > 1) {
+				printCli("Unexpected 'dfu' argument\r\n");
+				return 1;
+			}
+			printCli("Entering DFU mode\n");
+			startDfu();
+			return 0;
+		} else if (strcmp(cmd, CMD_TEST) == 0) {
+			if (argc < 2) {
+				printCli("Missing 'test' argument\r\n");
+				return 1;
+			}
+			const char *subCmd = argv[1];
+			if (strcmp(subCmd, SUBCMD_TEST_CRC) == 0) {
+				if (argc > 2) {
+					printCli("Unexpected 'test crc' argument\r\n");
+					return 1;
+				}
+				doCrcTest();
+				return 0;
+			} else if (strcmp(subCmd, SUBCMD_TEST_FLASH) == 0) {
+				if (argc < 3) {
+					printCli("Missing 'test flash' argument\r\n");
+					return 1;
+				}
+				const char *flashCmd = argv[2];
+				if (strcmp(flashCmd, SUBCMD_TEST_FLASH_READ) == 0) {
+					if (argc > 3) {
+						printCli("Unexpected 'test flash read' argument\r\n");
+						return 1;
+					}
+					doReadFlash();
+					return 0;
+				} else if (strcmp(flashCmd, SUBCMD_TEST_FLASH_WRITE) == 0) {
+					if (argc > 3) {
+						printCli("Unexpected 'test flash write' argument\r\n");
+						return 1;
+					}
+					doWriteFlash();
+					return 0;
+				} else {
+					printCli("Bad 'test flash' argument\r\n");
+					return 1;
+				}
+			} else {
+				printCli("Bad 'test' argument\r\n");
+				return 1;
+			}
+		} else if (strcmp(cmd, CMD_CD) == 0) {
+			if (argc < 2) {
+				printCli("Missing 'cd' argument\r\n");
+				return 1;
+			}
+			if (argc > 2) {
+				printCli("Unexpected extra 'cd' argument\r\n");
+				return 1;
+			}
+			const char *subCmd = argv[1];
+			if (strcmp(subCmd, "/") == 0) {
+				current = NULL;
+				return 0;
+			}
+			const char *fullPath = getFullPath(subCmd);
+			const PathEntry *e = find(fullPath);
+			if (!e) {
+				printCli("Path not found\r\n");
+				return 1;
+			}
+			current = e;
+			return 0;
+		} else {
+			printCli("Bad command\r\n");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+char** completeCli(int argc, const char *const*argv) {
+	completions[0] = NULL;
+	int completionIdx = 0;
+
+	if (argc == 0) {
+		for (;
+				completionIdx < sizeof(commands) / sizeof(char*)
+						&& completionIdx
+								< sizeof(completions) / sizeof(char*) - 3;
+				completionIdx++) {
+			addCompletion(completionIdx, commands[completionIdx]);
+		}
+	} else if (argc == 1) {
+		const char *cmd = argv[0];
+		for (int i = 0; i < sizeof(commands) / sizeof(char*); i++) {
+			if (strstr(commands[i], cmd) == commands[i]) {
+				completionIdx = addCompletion(completionIdx, commands[i]);
+			}
+		}
+	} else if (argc >= 2) {
+		const char *cmd = argv[0];
+		const char *subCmd = argv[1];
+
+		if (strcmp(cmd, CMD_TEST) == 0) {
+			if (argc == 2) {
+				for (int i = 0; i < sizeof(testSubcommands) / sizeof(char*);
+						i++) {
+					if (strstr(testSubcommands[i], subCmd)
+							== testSubcommands[i]) {
+						completionIdx = addCompletion(completionIdx,
+								testSubcommands[i]);
+					}
+
+				}
+			} else if (strcmp(subCmd, SUBCMD_TEST_FLASH) == 0 && argc == 3) {
+				const char *testFlashSubCmd = argv[2];
+				for (int i = 0;
+						i < sizeof(testFlashSubcommands) / sizeof(char*); i++) {
+					if (strstr(testFlashSubcommands[i], testFlashSubCmd)
+							== testFlashSubcommands[i]) {
+						completionIdx = addCompletion(completionIdx,
+								testFlashSubcommands[i]);
+					}
+				}
+			}
+		} else if (strcmp(cmd, CMD_CD) == 0 && argc == 2) {
+			const char *fullPath = getFullPath(subCmd);
+			int prefixLen;
+			if (subCmd[0] == '/') {
+				prefixLen = 0;
+			} else {
+				prefixLen = (current == NULL) ? 0 : (strlen(current->name) + 1);
+			}
+
+			int currentLevel = level(fullPath);
+			int matchCount = 0;
+			bool fullMatch = false;
+
+			for (int i = 0; i < sizeof(PATHS) / sizeof(PathEntry*); i++) {
+				if (strcmp(PATHS[i]->name, fullPath) == 0) {
+					fullMatch = true;
+				}
+				if (strstr(PATHS[i]->name, fullPath) == PATHS[i]->name) {
+					if (level(PATHS[i]->name) == currentLevel
+							|| (fullMatch
+									&& level(PATHS[i]->name) == currentLevel + 1)) {
+						completionIdx = addCompletion(completionIdx,
+								&PATHS[i]->name[prefixLen]);
+					}
+					matchCount++;
+				}
+			}
+			if (matchCount > 1) {
+				completionIdx = addCompletion(completionIdx, completions[0]);
+			}
+
+		}
+	}
+
+	completions[completionIdx] = NULL;
+	return (char**) completions;
+}
+
+char* promptCli() {
+	return current == NULL ? "/" : (char*) current->name;
+}
 
 void processCli(char c) {
-	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-			|| c == '(' || c == ')' || c == '_' || c == '-' || c == '+' || c == '*' || c == '/') {
-		if (tokenIdx < sizeof(token)) {
-			token[tokenIdx++] = c;
-		}
-	}
-	if (originIdx < sizeof(origin) && c != '\n') {
-		origin[originIdx++] = c;
-	}
-
-	switch (state) {
-	case START:
-		if (commandMatch(dfu)) {
-			state = DFU_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(crcTest)) {
-			state = CRC_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(readFlash)) {
-			state = READ_FLASH_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(writeFlash)) {
-			state = WRITE_FLASH_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(init)) {
-			state = INIT_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(resetDrv)) {
-			state = RESET_DRV_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(rs485Test)) {
-			state = RS_485_PRE;
-			tokenIdx = 0;
-		} else if (commandMatch(fdCanTest)) {
-			state = FD_CAN_PRE;
-			tokenIdx = 0;
-		}
-		break;
-	case SYNTAX_ERROR:
-	case DFU_POST:
-	case CRC_POST:
-	case READ_FLASH_POST:
-	case WRITE_FLASH_POST:
-	case INIT_POST:
-	case RESET_DRV_POST:
-	case RS_485_POST:
-	case FD_CAN_POST:
-	case DEV:
-	case CONFIG:
-	case ADDR:
-	case ADDR_ASSIGN:
-	case NEXT:
-	case NEXT_ASSIGN:
-		break;
-	case DFU_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = DFU_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case CRC_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = CRC_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case READ_FLASH_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = READ_FLASH_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case WRITE_FLASH_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = WRITE_FLASH_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case INIT_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = INIT_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case RESET_DRV_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = RESET_DRV_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case RS_485_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = RS_485_POST;
-			tokenIdx = 0;
-		}
-		break;
-	case FD_CAN_PRE:
-		if (tokenIdx == 1 && token[0] == ')') {
-			state = FD_CAN_POST;
-			tokenIdx = 0;
-		}
-		break;
-	}
-
-	if (c == '\n') {
-		handleNewline();
-	} else if (c == '.') {
-		handleDot();
-	} else if (c == '=') {
-		handleAssignment();
-	}
-}
-
-void handleDot() {
-	if (tokenIdx == 0) {
-		state = SYNTAX_ERROR;
-		return;
-	}
-
-	switch (state) {
-	case START:
-		if (commandMatch(dev)) {
-			state = DEV;
-			tokenIdx = 0;
-		}
-		break;
-	case DEV:
-		if (commandMatch(config)) {
-			state = CONFIG;
-			tokenIdx = 0;
-		}
-		break;
-	case CONFIG:
-		if (commandMatch(addr)) {
-			state = ADDR;
-			tokenIdx = 0;
-		} else if (commandMatch(next)) {
-			state = NEXT;
-			tokenIdx = 0;
-		}
-		break;
-
-	default:
-		break;
-	}
-}
-
-void handleAssignment() {
-	if (tokenIdx == 0) {
-		state = SYNTAX_ERROR;
-		return;
-	}
-
-	switch (state) {
-	case CONFIG:
-		if (commandMatch(addr)) {
-			state = ADDR_ASSIGN;
-			tokenIdx = 0;
-		} else if (commandMatch(next)) {
-			state = NEXT_ASSIGN;
-			tokenIdx = 0;
-		}
-		break;
-
-	default:
-		break;
-	}
-}
-
-void handleNewline() {
-	static uint32_t parsedValue;
-	switch (state) {
-	case SYNTAX_ERROR:
-		printf("Syntax error: [%.*s%s]\n", originIdx, origin,
-				originIdx == sizeof(origin) ? "..." : "");
-		state = START;
-		tokenIdx = 0;
-		originIdx = 0;
-		break;
-
-	case START:
-		if (commandMatch(dev)) {
-			state = DEV;
-			tokenIdx = 0;
-		}
-		break;
-	case DEV:
-		if (commandMatch(config)) {
-			state = CONFIG;
-			tokenIdx = 0;
-		}
-		break;
-	case CONFIG:
-		if (commandMatch(addr)) {
-			state = ADDR;
-			tokenIdx = 0;
-		} else if (commandMatch(next)) {
-			state = NEXT;
-			tokenIdx = 0;
-		}
-		break;
-	case ADDR_ASSIGN:
-		if (!parseValue(&parsedValue)) {
-			invalidValue();
-		} else {
-			printf("Assign 0x%08lX to dev.config.addr\n", parsedValue);
-		}
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		return;
-	case NEXT_ASSIGN:
-		if (!parseValue(&parsedValue)) {
-			invalidValue();
-		} else {
-			printf("Assign 0x%08lX to dev.config.next\n", parsedValue);
-		}
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		return;
-
-	default:
-		break;
-	}
-
-	if (tokenIdx != 0) {
-		printf("Can't parse: [%.*s%s]\n", originIdx, origin,
-				originIdx == sizeof(origin) ? "..." : "");
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		return;
-	}
-	switch (state) {
-	case SYNTAX_ERROR:
-	case START:
-	case ADDR_ASSIGN:
-	case NEXT_ASSIGN:
-		break;
-	case DFU_PRE:
-	case CRC_PRE:
-	case READ_FLASH_PRE:
-	case WRITE_FLASH_PRE:
-	case INIT_PRE:
-	case RESET_DRV_PRE:
-	case RS_485_PRE:
-	case FD_CAN_PRE:
-		incompleteCommand();
-		break;
-	case DFU_POST:
-		printf("Entering DFU mode\n");
-		startDfu();
-		break;
-		incompleteCommand();
-		break;
-	case CRC_POST:
-		doCrcTest();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case READ_FLASH_POST:
-		doReadFlash();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case WRITE_FLASH_POST:
-		doWriteFlash();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case INIT_POST:
-		doInit();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case RESET_DRV_POST:
-		doResetDrv();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case RS_485_POST:
-		doRs485Test();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case FD_CAN_POST:
-		doFdCanTest();
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case DEV:
-		printf("Print entire 'dev' setting tree\n");
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case CONFIG:
-		printf("Print 'dev.config' setting subtree\n");
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case ADDR:
-		printf("Print 'dev.config.addr' value\n");
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	case NEXT:
-		printf("Print 'dev.config.next' value\n");
-		tokenIdx = 0;
-		originIdx = 0;
-		state = START;
-		break;
-	}
-}
-
-void incompleteCommand() {
-	printf("Expected ')' at end of input: [%.*s%s]\n", originIdx, origin,
-			originIdx == sizeof(origin) ? "..." : "");
-	tokenIdx = 0;
-	originIdx = 0;
-	state = START;
-}
-
-char commandMatch(char command[]) {
-	return tokenIdx == strlen(command) && !memcmp(command, token, strlen(command));
+	microrl_insert_char(prl, c);
+	fflush(stdout);
 }
 
 void doCrcTest() {
-	printf("CRC test\n");
+	printf("CRC test\r\n");
 	uint32_t crcdata[] = { 0x12345678, 0x87654321 };
 	uint32_t crc = calculateCrc((uint8_t*) crcdata, 2);
-	printf("crc1: %08lx\n", crc);
+	printf("crc1: %08lx\r\n", crc);
 	crc = calculateCrc((uint8_t*) crcdata, 8);
-	printf("crc2: %08lx\n", crc);
+	printf("crc2: %08lx\r\n", crc);
 	crcdata[1] = 0x12345678;
 	crcdata[0] = 0x87654321;
 	crc = calculateCrc((uint8_t*) crcdata, 2);
-	printf("crc3: %08lx\n", crc);
+	printf("crc3: %08lx\r\n", crc);
 	// https://crccalc.com/?crc=7856&method=crc32&datatype=hex&outtype=0
 	uint8_t crcdata2[] = { 0x78, 0x56 };
 	crc = calculateCrc(crcdata2, 2);
-	printf("crc4: %08lx\n", crc);
+	printf("crc4: %08lx\r\n", crc);
 }
 
 void doReadFlash() {
 	uint32_t flashData;
 	EE_ReadVariable32bits(/* idx = */1, &flashData);
-	printf("Read: 0x%08lX\n", flashData);
+	printf("Read: 0x%08lX\r\n", flashData);
 }
 
 void doWriteFlash() {
@@ -462,7 +347,7 @@ void doWriteFlash() {
 
 	/* Lock the Flash Program Erase controller */
 	HAL_FLASH_Lock();
-	printf("Written: 0x%08lX\n", flashData);
+	printf("Written: 0x%08lX\r\n", flashData);
 }
 
 void doInit() {
@@ -473,52 +358,4 @@ void doInit() {
 
 void doResetDrv() {
 	resetDrv8320hFault();
-}
-
-void invalidValue() {
-	printf("Can't parse value to assign: [%.*s%s]\n", originIdx, origin,
-			originIdx == sizeof(origin) ? "..." : "");
-	tokenIdx = 0;
-	originIdx = 0;
-	state = START;
-}
-
-char parseHex(uint32_t *value) {
-	*value = 0;
-	static char c;
-	for (int i = 2; i < tokenIdx; i++) {
-		c = token[i];
-		if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-			*value = *value * 16 + (c & 0x0F) + (c >= 'A' ? 9 : 0);
-		} else {
-			return 0;
-		}
-	}
-	return 1;
-}
-
-char parseDec(uint32_t *value) {
-	*value = 0;
-	static char c;
-	for (int i = 0; i < tokenIdx; i++) {
-		c = token[i];
-		if (c >= '0' && c <= '9') {
-			*value = *value * 10 + c - '0';
-		} else {
-			return 0;
-		}
-	}
-	return 1;
-}
-
-char parseValue(uint32_t *value) {
-	if (commandMatch(testEnum)) {
-		*value = 0x321;
-		return 1;
-	} else if (tokenIdx > 2 && token[0] == '0' && token[1] == 'x') {
-		return parseHex(value);
-	} else if (tokenIdx > 0) {
-		return parseDec(value);
-	}
-	return 0;
 }
